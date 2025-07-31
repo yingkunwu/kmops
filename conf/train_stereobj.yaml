@@ -1,0 +1,45 @@
+defaults:
+  - _self_
+  - model: kmops
+  - hydra: default.yaml
+
+# run name for logging weights, loss, metrics, and visualizations' using weights and biases
+run_name: ???
+disable_log: False  # disable wandb.ai
+
+# Training configurations
+kpt_type: 8
+aux_loss: True  # whether to use auxiliary loss for each decoder
+pretrained_model: ""  # Path to the pre-trained model weight, if any
+gpu: 0  # 0
+batch_size: 16
+num_workers: 8  # Number of workers for data loading
+pkl_path: ???
+
+# Hyperparameters
+num_epochs: 12
+learning_rate: 1e-4
+backbone_learning_rate: 1e-5
+weight_decay: 1e-4
+scheduler:  # MultiStepLR
+  milestones:
+  - 9
+  gamma: 0.1
+
+# One-to-One Matcher relative weight
+o2o_coef_class: 2.0  # Class confidence coefficient
+o2o_coef_kpts: 8.0   # Keypoints difference coefficient
+o2o_coef_oks: 4.0    # OKS-based coefficient
+o2o_coef_conf: 1.0
+
+# Loss coefficients
+ce_loss_coef: 1.0
+kpts_loss_coef: 8.0
+oks_loss_coef: 4.0
+conf_loss_coef: 1.0
+
+augments:
+  flip: 0.5
+  random_size_crop: [0.6, 1]
+  scale_jitter: [0.6, 1.1]
+  resize: [640, 640]  # [w, h]
