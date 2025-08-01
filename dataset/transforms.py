@@ -10,7 +10,7 @@ from utils.util import project_3d_to_2d_batch
 
 
 def make_transforms(cfg, image_set):
-    if image_set == 'val':
+    if image_set == 'train':
         return Compose([
             HorizontalFlip(flip_prob=cfg.augments.flip),
             RandomSizeCrop(*cfg.augments.random_size_crop),
