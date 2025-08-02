@@ -11,8 +11,11 @@ from utils.util import to_tensor
 
 class BaseDataset:
     def __init__(self, cfg, image_set):
-        self.cfg = cfg
-        with open(cfg.pkl_path, 'rb') as f:
+        if image_set == "train":
+            pkl_path = cfg.dataset.train_pkl
+        else:
+            pkl_path = cfg.dataset.val_pkl
+        with open(pkl_path, 'rb') as f:
             self.pkl = pickle.load(f)
 
         self.transform = make_transforms(cfg, image_set)

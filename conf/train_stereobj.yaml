@@ -8,13 +8,12 @@ run_name: ???
 disable_log: False  # disable wandb.ai
 
 # Training configurations
-kpt_type: 8
+num_k: 8
 aux_loss: True  # whether to use auxiliary loss for each decoder
 pretrained_model: ""  # Path to the pre-trained model weight, if any
 gpu: 0  # 0
 batch_size: 16
 num_workers: 8  # Number of workers for data loading
-pkl_path: ???
 
 # Hyperparameters
 num_epochs: 12
@@ -37,6 +36,24 @@ ce_loss_coef: 1.0
 kpts_loss_coef: 8.0
 oks_loss_coef: 4.0
 conf_loss_coef: 1.0
+
+dataset:
+  train_pkl: "data/train.pkl"
+  val_pkl: "data/val.pkl"
+  names:
+    0: blade_razor
+    1: hammer
+    2: needle_nose_pliers
+    3: screwdriver
+    4: side_cutters
+    5: tape_measure
+    6: wire_stripper
+    7: wrench
+    8: centrifuge_tube
+    9: microplate
+    10: tube_rack
+    11: pipette
+    12: sterile_tip_rack
 
 augments:
   flip: 0.5
