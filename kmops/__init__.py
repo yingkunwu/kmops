@@ -4,7 +4,6 @@ from .encoder import HybridEncoder
 from .decoder import DeformableTransformer
 from .matcher import HungarianMatcher
 from .loss import SetCriterion
-from .postprocessor import PostProcessor
 
 
 def build_backbone(cfg):
@@ -80,7 +79,3 @@ def build_criterion(cfg):
             num_keypoints=cfg.num_k
         )
     )
-
-
-def build_postprocessor(cfg):
-    return PostProcessor()

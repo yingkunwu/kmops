@@ -7,7 +7,7 @@ import torch.nn.functional as F
 import torch.nn.init as init
 from einops import rearrange, repeat
 
-from utils.util import kpts_pose_disp_to_left_right
+from utils.util import kpts_disp_to_left_right
 from .util import (
     deformable_attention_core_func, get_activation, inverse_sigmoid,
     bias_init_with_prob,
@@ -97,9 +97,8 @@ class MSDeformableAttention(nn.Module):
         Args:
             query (Tensor): [bs, query_length, C]
             reference_points (Tensor):
-                [bs, query_length, n_levels, num_keypoints * 2 + 4],
-                range in [0, 1], top-left (0,0), bottom-right (1, 1),
-                including padding area
+                [bs, query_length, n_levels, num_keypoints + 1, 2],
+                range in [0, 1], top-left (0,0), bottom-right (1, 1)
             value (Tensor): [bs, value_length, C]
             value_spatial_shapes (List): [n_levels, 2],
                 [(H_0, W_0), (H_1, W_1), ..., (H_{L-1}, W_{L-1})]
@@ -328,7 +327,7 @@ class TransformerDecoder(nn.Module):
         log_infos = []
 
         outs = {
-            'o2o_logits': [], 'o2o_pose': [], 'o2o_disp': [], 'o2o_conf': []
+            'o2o_logits': [], 'o2o_kpts': [], 'o2o_disp': [], 'o2o_conf': []
         }
 
         # Initial “detached” refs
@@ -341,7 +340,7 @@ class TransformerDecoder(nn.Module):
             query_pos_embed = query_pose_head(self.prepend_center(joint))
 
             ref_l_det, ref_r_det \
-                = kpts_pose_disp_to_left_right(ref_mid_det, ref_disp_det)
+                = kpts_disp_to_left_right(ref_mid_det, ref_disp_det)
 
             output, log_info = layer(
                 output,
@@ -357,14 +356,14 @@ class TransformerDecoder(nn.Module):
             log_infos.append(log_info)
 
             cls_out = score_head[i](output[:, :, 0])
-            pose_out = pose_head[i](output[:, :, 1:])
+            kpts_out = pose_head[i](output[:, :, 1:])
             disp_out = disp_head[i](output[:, :, 1:])
             conf_out = conf_head[i](output[:, :, 1:])
 
             outs['o2o_logits'].append(cls_out)
             outs['o2o_conf'].append(conf_out)
             inter_ref_mid = F.sigmoid(
-                pose_out + inverse_sigmoid(ref_mid_det))
+                kpts_out + inverse_sigmoid(ref_mid_det))
             inter_ref_disp = F.sigmoid(
                 disp_out + inverse_sigmoid(ref_disp_det))
 
@@ -372,10 +371,10 @@ class TransformerDecoder(nn.Module):
                 ref_mid_o2o = inter_ref_mid
                 ref_disp_o2o = inter_ref_disp
             else:
-                ref_mid_o2o = F.sigmoid(pose_out + inverse_sigmoid(ref_mid))
+                ref_mid_o2o = F.sigmoid(kpts_out + inverse_sigmoid(ref_mid))
                 ref_disp_o2o = F.sigmoid(disp_out + inverse_sigmoid(ref_disp))
 
-            outs['o2o_pose'].append(ref_mid_o2o)
+            outs['o2o_kpts'].append(ref_mid_o2o)
             outs['o2o_disp'].append(ref_disp_o2o)
 
             ref_mid = inter_ref_mid
@@ -385,7 +384,7 @@ class TransformerDecoder(nn.Module):
 
         return {
             'o2o_out_logits': outs['o2o_logits'],
-            'o2o_out_pose': outs['o2o_pose'],
+            'o2o_out_kpts': outs['o2o_kpts'],
             'o2o_out_disp': outs['o2o_disp'],
             'o2o_out_conf': outs['o2o_conf'],
             'log_infos': log_infos
@@ -465,7 +464,6 @@ class DeformableTransformer(nn.Module):
             nn.Linear(hidden_dim * 2, hidden_dim),
             nn.LayerNorm(hidden_dim)
         )
-        # TODO: change variable names from pose to kpts
         self.enc_score_head = nn.Linear(hidden_dim, num_classes)
         self.enc_pose_head = MLP(
             hidden_dim, hidden_dim, num_keypoints * 2, num_layers=3)
@@ -606,14 +604,14 @@ class DeformableTransformer(nn.Module):
         # Encoder outputs
         enc_mem = self.enc_output(memory)
         cls_out = self.enc_score_head(enc_mem)
-        pose_out = self.enc_pose_head(enc_mem)
+        kpts_out = self.enc_pose_head(enc_mem)
         disp_out = self.enc_disp_head(enc_mem)
         conf_out = self.enc_conf_head(enc_mem)
 
         # pose_out: [B, L, nk * 2] before sigmoid
         anchors = repeat(anchors, '1 l p -> b l (q p)',
                          b=bs, q=self.num_keypoints)
-        pose_out = F.sigmoid(pose_out + anchors)
+        kpts_out = F.sigmoid(kpts_out + anchors)
         disp_out = F.sigmoid(disp_out)
 
         # Select top-K queries by classification score
@@ -625,11 +623,11 @@ class DeformableTransformer(nn.Module):
 
         # Gather and reshape
         topk_logits = gather(cls_out)
-        topk_pose = gather(pose_out)  # average_pose
+        topk_kpts = gather(kpts_out)
         topk_disp = gather(disp_out)
         topk_conf = gather(conf_out)
 
-        topk_pose = rearrange(topk_pose, 'b q (nk p) -> b q nk p', p=2)
+        topk_kpts = rearrange(topk_kpts, 'b q (nk p) -> b q nk p', p=2)
         topk_disp = rearrange(topk_disp, 'b q nk -> b q nk 1')
         topk_conf = rearrange(topk_conf, 'b q nk -> b q nk 1')
 
@@ -647,20 +645,20 @@ class DeformableTransformer(nn.Module):
         target = torch.cat(
             [tgt_global, tgt_pose + target.unsqueeze(-2)], dim=2)
 
-        return target, topk_logits, topk_pose, topk_disp, topk_conf
+        return target, topk_logits, topk_kpts, topk_disp, topk_conf
 
     def forward(self, feats, masks):
         # input projection and embedding
         memory, padding_mask, spatial_shapes, _ \
             = self._get_encoder_input(feats, masks)
 
-        target, topk_logits, topk_pose, topk_disp, topk_conf \
+        target, topk_logits, topk_kpts, topk_disp, topk_conf \
             = self._get_decoder_input(memory, spatial_shapes)
 
         # decoder
         result = self.decoder(
             target,
-            topk_pose,
+            topk_kpts,
             topk_disp,
             memory,
             spatial_shapes,
@@ -672,25 +670,25 @@ class DeformableTransformer(nn.Module):
             memory_mask=padding_mask)
 
         result["o2o_out_logits"] = torch.stack(result["o2o_out_logits"], dim=0)
-        result["o2o_out_pose"] = torch.stack(result["o2o_out_pose"], dim=0)
+        result["o2o_out_kpts"] = torch.stack(result["o2o_out_kpts"], dim=0)
         result["o2o_out_disp"] = torch.stack(result["o2o_out_disp"], dim=0)
         result["o2o_out_conf"] = torch.stack(result["o2o_out_conf"], dim=0)
 
         out = self._make_pred(
             result["o2o_out_logits"][-1],
-            result["o2o_out_pose"][-1],
+            result["o2o_out_kpts"][-1],
             result["o2o_out_disp"][-1],
             result["o2o_out_conf"][-1],
         )
 
         if self.aux_loss:
             out['enc_outputs'] = self._make_pred(
-                topk_logits, topk_pose, topk_disp, topk_conf
+                topk_logits, topk_kpts, topk_disp, topk_conf
             )
 
             out['aux_outputs'] = self._set_aux_output(
                 result["o2o_out_logits"][:-1],
-                result["o2o_out_pose"][:-1],
+                result["o2o_out_kpts"][:-1],
                 result["o2o_out_disp"][:-1],
                 result["o2o_out_conf"][:-1],
             )
@@ -699,10 +697,10 @@ class DeformableTransformer(nn.Module):
         out.update({"log_infos": result['log_infos'][-1]})
         return out
 
-    def _make_pred(self, logits, pose, disp, conf):
+    def _make_pred(self, logits, kpts, disp, conf):
         return {
             'pred_logits': logits,
-            'pred_pose': pose,
+            'pred_kpts': kpts,
             'pred_disp': disp,
             'pred_conf': conf,
         }

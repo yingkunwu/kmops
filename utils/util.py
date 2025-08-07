@@ -49,7 +49,7 @@ class NestedTensor(object):
                f"mask=tensor({self.mask.shape}))"
 
 
-def kpts_pose_disp_to_left_right(midpoints, disparities):
+def kpts_disp_to_left_right(midpoints, disparities):
     # turn 1‐channel disparity into 2D vector and split left/right
     disp_vec = torch.cat([disparities, torch.zeros_like(disparities)], dim=-1)
     half = disp_vec.mul(0.5)

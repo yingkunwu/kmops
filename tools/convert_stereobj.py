@@ -151,10 +151,6 @@ def convert(root_path, image_set):
     records = []
     for subdir in tqdm.tqdm(filename_dict):
         for img_id in filename_dict[subdir]:
-            # Skip every 2 frames
-            if int(img_id.split('_')[-1]) % 20 != 0:
-                continue
-
             annots = dataset.load_annotations(subdir, img_id)
             info = {
                 'image_id': f"{subdir}_{img_id}",
