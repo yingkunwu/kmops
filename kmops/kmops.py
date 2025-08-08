@@ -4,8 +4,8 @@ import torch.nn.functional as F
 from einops import rearrange
 
 from utils.util import (
-    NestedTensor, kpts_disp_to_left_right, project_3d_to_2d_batch,
-    reproject_2d_to_3d_batch, gen_reproj_matrix_batch
+    NestedTensor, kpts_disp_to_left_right, reproject_2d_to_3d_batch,
+    gen_reproj_matrix_batch
 )
 from utils.box import Box
 
@@ -171,32 +171,26 @@ class KMOPS(nn.Module):
         return k3d
 
     @torch.no_grad()
-    def posefitting(self, PL, PR, k3d, conf=None):
+    def posefitting(self, k3d, conf=None):
         """
         Fit the pose of the 3D keypoints to get the sizes and poses.
 
         Args:
-            PL: Left camera projection matrix, shape [4, 4]
-            PR: Right camera projection matrix, shape [4, 4]
             k3d: 3D keypoints, shape [N, num_keypoints, 3]
             conf (optional): Confidence scores for the keypoints,
                              shape [N, num_keypoints, 1]
         Returns:
             A dictionary containing:
-                - "pt_l": Projected 8 corners of the 3D box on the left image
-                          in 2D, shape [N, 8, 2]
-                - "pt_r": Projected 8 corners of the 3D box on the right image
-                          in 2D shape [N, 8, 2]
-                - "pose": List of 4x4 pose matrices for each keypoint,
-                          shape [N, 4, 4]
-                - "scale": List of sizes for each keypoint, shape [N, 3]
-                - "axes_l": Projected axes on the left image, shape [N, 4, 2]
-                - "axes_r": Projected axes on the right image, shape [N, 4, 2]
+                "poses": list of N 4x4 homogeneous pose matrices,
+                         shape [N, 4, 4]
+                "scales": list of N box sizes [length, width, height],
+                          shape [N, 3]
+                "box3ds": list of N sets of 8 corner coordinates,
+                          shape [N, 8, 3]
+                "ax3ds": list of N axis endpoints in 3D, shape [N, 4, 3]
         """
-
-        pt_l, pt_r = [], []
-        pose, size = [], []
-        axes_l, axes_r = [], []
+        poses, scales = [], []
+        box3ds, ax3ds = [], []
         for k, pt in enumerate(k3d):
             if conf is not None:
                 box = Box.from_keypoints(pt, conf[k])
@@ -207,12 +201,11 @@ class KMOPS(nn.Module):
             T = torch.eye(4, dtype=R.dtype, device=R.device)
             T[:3, :3] = R
             T[:3, 3] = t
-            pose.append(T.tolist())
-            size.append(box.get_size().tolist())
+            poses.append(T.tolist())
+            scales.append(box.get_size().tolist())
 
-            kpts = box.get_keypoints(num_k=8).to(torch.float32)
-            pt_l.append(project_3d_to_2d_batch(kpts, PL))
-            pt_r.append(project_3d_to_2d_batch(kpts, PR))
+            box3d = box.get_keypoints(num_k=8).to(torch.float32)
+            box3ds.append(box3d.tolist())
 
             # Define the pose axis in 3D space
             axis_length = 0.1
@@ -224,14 +217,11 @@ class KMOPS(nn.Module):
             ], dtype=torch.float64)
             ax3d = (R @ axis.T).T + t
             ax3d = ax3d.to(torch.float32)
-            axes_l.append(project_3d_to_2d_batch(ax3d, PL))
-            axes_r.append(project_3d_to_2d_batch(ax3d, PR))
+            ax3ds.append(ax3d.tolist())
 
         return {
-            "pt_l": pt_l,
-            "pt_r": pt_r,
-            "pose": pose,
-            "scale": size,
-            "axes_l": axes_l,
-            "axes_r": axes_r,
+            "poses": poses,
+            "scales": scales,
+            "box3ds": box3ds,
+            "ax3ds": ax3ds,
         }

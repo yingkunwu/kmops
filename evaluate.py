@@ -8,6 +8,7 @@ from contextlib import redirect_stdout
 from kmops import build_model
 from dataset import build_dataset
 from evaluators import build_validator
+from utils.vis import MEAN, STD, normalize_batch, visualize
 
 torch.set_float32_matmul_precision("high")
 
@@ -33,26 +34,26 @@ def inference(KMOPS, samples, targets, device):
 
         # get predicted pose
         k3d = KMOPS.reprojection(PL, PR, baseline, k2d_l, k2d_r)
-        preds = KMOPS.posefitting(PL, PR, k3d, conf)
+        preds = KMOPS.posefitting(k3d, conf)
 
         gt_k3d = targets['kpts_3d'][i]
-        gts = KMOPS.posefitting(PL, PR, gt_k3d)
+        gts = KMOPS.posefitting(gt_k3d)
 
         results.append({
             'pred_kpts_l': k2d_l,
             'pred_kpts_r': k2d_r,
             'pred_conf': conf,
             'pred_scores': scores,
-            'pred_boxes_l': preds['pt_l'],
-            'pred_boxes_r': preds['pt_r'],
-            'pred_RTs': preds['pose'],
-            'pred_scales': preds['scale'],
+            'pred_RTs': preds['poses'],
+            'pred_scales': preds['scales'],
             "pred_class_ids": labels.long(),
-            'gt_boxes_l': gts['pt_l'],
-            'gt_boxes_r': gts['pt_r'],
-            'gt_RTs': gts['pose'],
-            "gt_scales": gts['scale'],
+            'pred_box3ds': preds['box3ds'],
+            'pred_ax3ds': preds['ax3ds'],  # for visualization
+            'gt_RTs': gts['poses'],
+            "gt_scales": gts['scales'],
             "gt_class_ids": targets['labels'][i],
+            'gt_box3ds': gts['box3ds'],
+            'gt_ax3ds': gts['ax3ds']  # for visualization
         })
 
     return results
@@ -64,8 +65,8 @@ def run(args):
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-    out_dir = os.path.join(args.wandb_folder, "vis")
-    os.makedirs(out_dir, exist_ok=True)
+    vis_dir = os.path.join(args.wandb_folder, "vis")
+    os.makedirs(vis_dir, exist_ok=True)
 
     cfg = OmegaConf.load(cfg_path)
     print(cfg)
@@ -81,8 +82,8 @@ def run(args):
         {k.replace('model.', ''): v for k, v in ckpt.items()}, strict=True)
     KMOPS = KMOPS.eval().to(device)
 
-    for batch_samples, batch_targets in tqdm.tqdm(loader, total=len(loader)):
-        outputs = inference(KMOPS, batch_samples, batch_targets, device)
+    for bi, (bs, bt) in tqdm.tqdm(enumerate(loader), total=len(loader)):
+        outputs = inference(KMOPS, bs, bt, device)
 
         # Convert all tensors in outputs to numpy
         for output in outputs:
@@ -95,6 +96,27 @@ def run(args):
                                    else v for v in value]
         for res in outputs:
             validator.add_result(res)
+
+        if bi % 100 == 0:
+            batch_img_l, batch_img_r, _ = bs.decompose()
+            imgs_l = normalize_batch(batch_img_l, MEAN, STD)
+            imgs_r = normalize_batch(batch_img_r, MEAN, STD)
+            # visualize each sample in the batch separately
+            for idx, res in enumerate(outputs):
+                visualize(
+                    imgs_l[idx], imgs_r[idx],
+                    res['pred_box3ds'],
+                    res['pred_scores'],
+                    res['pred_class_ids'],
+                    res['pred_ax3ds'],
+                    res['gt_box3ds'],
+                    res['gt_class_ids'],
+                    res['gt_ax3ds'],
+                    cfg.dataset.names,
+                    bt['proj_matrix_l'][idx].cpu().to(torch.float32),
+                    bt['proj_matrix_r'][idx].cpu().to(torch.float32),
+                    os.path.join(vis_dir, f"batch_{bi}_{idx}.png")
+                )
 
     result_log_path = os.path.join(args.wandb_folder, 'eval_result.log')
     validator.compute_metrics()
