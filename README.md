@@ -34,7 +34,7 @@ This is the official code release for our paper "****". **[[Paper]]  [[Project P
     ```
     > This code is self-contained and will automatically download the model weights on first run. If the download fails, you can manually download the weights from [here](https://drive.google.com/file/d/1FpzqUp_yxRkaEcyZcvCoNKKgHG0U7dUt/view?usp=sharing) and then run the script again.
 
-<a name="Datasets"></a>
+<a name="Dataset"></a>
 ## Dataset Preparation
 
 1. We utilized [StereOBJ-1M](https://sites.google.com/view/stereobj-1m/home?authuser=0) and [Keypose](https://sites.google.com/view/keypose/) in our experiments. Please follow their instructions and prepare the structure as follows:
@@ -107,7 +107,7 @@ python train.py --config-name train_stereobj wandb_online=False run_name=8keypoi
 <a name="Evaluation"></a>
 ## Evaluation
 
-Everything required for evaluation will be automatically saved in the folder that saves wandb logging data to ensure evaluation uses exactly the same settings as training.
+Everything required for evaluation will be automatically saved in the folder that saves wandb logging data during training to ensure evaluation uses exactly the same settings as training.
 ```
 python evaluate.py --wandb_folder 8keypoints_o2o_stereobj
 ```
@@ -116,7 +116,7 @@ python evaluate.py --wandb_folder 8keypoints_o2o_stereobj
 
 ## Acknowledgments
 
-Many parts of the code are adapted and modified from [DETR](https://github.com/yangsenius/TransPose), [RTDETR](https://github.com/open-mmlab/mmpose), [GroupPose](), and [Ultralytics]().
+Many parts of the code are adapted and modified from [DETR](https://github.com/facebookresearch/detr), [RTDETR](https://github.com/lyuwenyu/RT-DETR), [GroupPose](https://github.com/Michel-liu/GroupPose), [Ultralytics](https://github.com/ultralytics/ultralytics), and [SPD](https://github.com/mentian/object-deformnet).
 
 ## Citation
 
