@@ -6,6 +6,9 @@ from omegaconf import OmegaConf
 import numpy as np
 import torch
 import torchvision.transforms.functional as F
+import subprocess
+import sys
+import zipfile
 
 from kmops import build_model
 from utils.util import NestedTensor
@@ -15,6 +18,55 @@ torch.set_float32_matmul_precision("high")
 
 MEAN = [0.485, 0.456, 0.406]
 STD = [0.229, 0.224, 0.225]
+
+TARGET_DIR = "8keypoints_o2o_stereobj"
+FILE_ID = "1FpzqUp_yxRkaEcyZcvCoNKKgHG0U7dUt"
+ZIP_PATH = TARGET_DIR + ".zip"
+
+
+def ensure_gdown():
+    try:
+        import gdown  # type: ignore
+        return gdown
+    except Exception:
+        pass
+    try:
+        print("[info] Installing gdown ...")
+        subprocess.run(
+            [sys.executable, "-m", "pip", "install", "-q", "gdown"],
+            check=True
+        )
+        import gdown  # type: ignore
+        return gdown
+    except Exception as e:
+        print(f"[warn] gdown unavailable ({e}).")
+        return None
+
+
+def download_with_gdown(file_id: str, out_path: str) -> None:
+    gdown = ensure_gdown()
+    url = f"https://drive.google.com/uc?id={file_id}"
+    print(f"[info] Downloading via gdown -> {out_path}")
+    ok = gdown.download(url, out_path, quiet=False)
+    if not ok:
+        raise RuntimeError("Not able to download model weight from gdown,"
+                           " please download it manually from Google Drive.")
+
+
+def extract_zip(zip_path: str, expected_dir: str) -> None:
+    if not zipfile.is_zipfile(zip_path):
+        raise RuntimeError(f"{zip_path} is not a valid zip file.")
+    with zipfile.ZipFile(zip_path) as zf:
+        print(f"[info] Extracting {zip_path} ...")
+        zf.extractall(".")
+        # If expected dir still not there, just inform user what got extracted
+        if not os.path.isdir(expected_dir):
+            # Try to guess top-level dirs from the archive
+            roots = set(p.split("/")[0] for p in zf.namelist() if "/" in p)
+            print(f"[warn] '{expected_dir}' not found after extraction.")
+            if roots:
+                print(f"[info] Top-level entries in zip: {sorted(roots)}")
+    print("[info] Done extracting.")
 
 
 def preprocess(img_l, img_r, target_size):
@@ -34,9 +86,39 @@ def preprocess(img_l, img_r, target_size):
 
 
 if __name__ == "__main__":
+    if not os.path.isdir(TARGET_DIR):
+        # Make sure we don't leave a half-downloaded zip around
+        if os.path.exists(ZIP_PATH):
+            print(f"[info] Removing stale file: {ZIP_PATH}")
+            try:
+                os.remove(ZIP_PATH)
+            except OSError:
+                pass
+
+        try:
+            # Download model weight using gdown
+            download_with_gdown(FILE_ID, ZIP_PATH)
+            extract_zip(ZIP_PATH, TARGET_DIR)
+        finally:
+            # Clean up zip to save space
+            if os.path.exists(ZIP_PATH):
+                try:
+                    os.remove(ZIP_PATH)
+                    print(f"[info] Removed archive {ZIP_PATH}")
+                except OSError:
+                    print(f"[warn] Could not remove {ZIP_PATH};"
+                          " remove it manually if desired.")
+
+        if os.path.isdir(TARGET_DIR):
+            print(f"[ok] Ready: {TARGET_DIR}")
+        else:
+            print(f"[warn] Finished, but '{TARGET_DIR}' was not found. "
+                  "Please check extracted contents.")
+    else:
+        print(f"[ok] '{TARGET_DIR}' already exists. Nothing to do.")
+
     cfg = {
-        "ckpt_path": "wandb/8keypoints_o2o_stereobj_frame_attention/"
-                     "weight/last.ckpt",
+        "ckpt_path": "8keypoints_o2o_stereobj/weight/last.ckpt",
         "demo_path": "./demo",
         "save_path": "./demo_vis",
         "dataset": {
