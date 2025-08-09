@@ -44,9 +44,9 @@ We use right-handed coordinate frames for objects and cameras. All objects have 
 
                  down
     ```
-    * +X → forward
-    * +Y → left
-    * +Z → up
+    * +X → forward (length)
+    * +Y → left (width)
+    * +Z → up (height)
 
 ## Expected Output Format (`.pkl`)
 
@@ -71,11 +71,11 @@ Each `.pkl` file should be a list of dictionary samples with the following keys:
 }
 ```
 
-> Note that the obj_name and label for each object should be in accordance with the dataset.names in [train config](kmops/conf/).
+> Note that the obj_name and label for each object should be in accordance with the dataset.names in [train config](../conf/).
 
 
 ## Object Property (Optional)
-To enable horizontal flipping during training, you must handle object symmetries correctly. Extend the object properties in [dataset/object_property.py](kmops/dataset/object_property.py) to specify each object’s behavior under a horizontal flip. In this augmentation we negate the x coordinate in the object’s local coordinate frame. Please carefully consider how your object’s appearance should change accordingly. The ```flip_pairs``` mapping should define how the eight 3D box corners permute under the flip, using the canonical ordering below.
+To enable horizontal flipping during training, you must handle object symmetries correctly. Extend the object properties in [dataset/object_property.py](../dataset/object_property.py) to specify each object’s behavior under a horizontal flip. In this augmentation we negate the x coordinate in the object’s local coordinate frame. Please carefully consider how your object’s appearance should change accordingly. The ```flip_pairs``` mapping should define how the eight 3D box corners permute under the flip, using the canonical ordering below.
 ```
 3D bounding box corners in canonical order:
 
