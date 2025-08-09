@@ -157,8 +157,8 @@ class KMOPS(nn.Module):
         stereo baseline.
 
         Args:
-            PL: Left camera projection matrix, shape [4, 4]
-            PR: Right camera projection matrix, shape [4, 4]
+            PL: Left camera projection matrix, shape [3, 4]
+            PR: Right camera projection matrix, shape [3, 4]
             baseline: Baseline distance between the two cameras, shape [1]
             k2d_l: Left keypoints in 2D, shape [N, num_keypoints, 2]
             k2d_r: Right keypoints in 2D, shape [N, num_keypoints, 2]

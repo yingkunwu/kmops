@@ -40,6 +40,12 @@ class NestedTensor(object):
         cast_mask = self.mask.to(device)
         return NestedTensor(cast_image_l, cast_image_r, cast_mask)
 
+    def unsqueeze(self, dim):
+        image_l = self.image_l.unsqueeze(dim)
+        image_r = self.image_r.unsqueeze(dim)
+        mask = self.mask.unsqueeze(dim)
+        return NestedTensor(image_l, image_r, mask)
+
     def decompose(self):
         return self.image_l, self.image_r, self.mask
 

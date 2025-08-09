@@ -26,7 +26,7 @@ MEAN = [0.485, 0.456, 0.406]
 STD = [0.229, 0.224, 0.225]
 
 
-def plot_joints(img, joints, visibility=None, c=(0, 255, 0)):
+def plot_joints(img, joints, c=(0, 255, 0)):
     """
     joints: Nx2 or Nx3 array where each row is (x, y[, confidence])
     visibility: optional N-element boolean mask
@@ -44,7 +44,7 @@ def plot_joints(img, joints, visibility=None, c=(0, 255, 0)):
 
         # choose color based on visibility
         color = c
-        if visibility is not None and not visibility[k]:
+        if conf is not None and conf < 0.5:
             color = (0, 0, 255)
 
         # draw the joint
@@ -130,7 +130,7 @@ def match_predictions(src_kpts, tgt_kpts, src_scores):
     return linear_sum_assignment(C.cpu().numpy())
 
 
-def visualize(
+def visualize_with_gt(
     img_l, img_r,
     pred_box3ds, pred_scores, pred_class_ids, pred_ax3ds,
     gt_box3ds, gt_class_ids, gt_ax3ds, class_names,
@@ -154,6 +154,7 @@ def visualize(
 
     # helper to draw boxes, axes and labels on stereo images
     def _draw_on(img_l_i, img_r_i, box3ds, ax3ds, cls_ids, idxs):
+        obj_labels = []
         for idx in idxs:
             box3d = box3ds[idx]
             ax3d = ax3ds[idx]
@@ -172,10 +173,12 @@ def visualize(
             plot_axes(img_l_i, a2d_l)
             plot_axes(img_r_i, a2d_r)
 
-            # prepare and put label text on left image
             text = class_names[label]
             xs, ys = b2d_l[:, 0], b2d_l[:, 1]
             x0, y0 = int(xs.min()), int(ys.min()) - 5
+            obj_labels.append((text, color, x0, y0))
+
+        for text, color, x0, y0 in obj_labels:
             (tw, th), baseline = cv2.getTextSize(text, font, 0.5, 1)
             tl = (x0, y0 - th - baseline)
             br = (x0 + tw + 4, y0 + 2)
@@ -194,4 +197,66 @@ def visualize(
     cv2.putText(combined_gt, "Ground Truth", (10, 20), font,
                 0.5, (255, 255, 255), 1, cv2.LINE_AA)
     combined = np.vstack((combined, combined_gt))
+    cv2.imwrite(save_path, combined)
+
+
+def visualize(
+    img_l, img_r, pred_box3ds, pred_scores, pred_class_ids, pred_ax3ds,
+    pred_kpts_l, pred_kpts_r, class_names, proj_mat_l, proj_mat_r, save_path
+):
+    """
+    Draw prediction boxes, ground-truth (red) boxes and axes,
+    then save a side-by-side image.
+    """
+    pred_box3ds = to_tensor(pred_box3ds)
+    pred_scores = to_tensor(pred_scores)
+    pred_ax3ds = to_tensor(pred_ax3ds)
+
+    font = cv2.FONT_HERSHEY_SIMPLEX
+
+    # helper to draw boxes, axes and labels on stereo images
+    def _draw_on(img_l_i, img_r_i, box3ds, ax3ds, cls_ids, idxs):
+        obj_labels = []
+        for idx in idxs:
+            box3d = box3ds[idx]
+            ax3d = ax3ds[idx]
+            label = cls_ids[idx].item()
+            score = pred_scores[idx].item()
+            color = colors_rgb[label]
+
+            # project and draw 3D bbox on left/right
+            b2d_l = project_3d_to_2d_batch(box3d, proj_mat_l).numpy()
+            b2d_r = project_3d_to_2d_batch(box3d, proj_mat_r).numpy()
+            plot_3d_bbox(img_l_i, b2d_l, color=color)
+            plot_3d_bbox(img_r_i, b2d_r, color=color)
+
+            # project and draw axes
+            a2d_l = project_3d_to_2d_batch(ax3d, proj_mat_l).to(int).numpy()
+            a2d_r = project_3d_to_2d_batch(ax3d, proj_mat_r).to(int).numpy()
+            plot_axes(img_l_i, a2d_l)
+            plot_axes(img_r_i, a2d_r)
+
+            # plot predicted keypoints on left and right images
+            plot_joints(img_l_i, pred_kpts_l[idx])
+            plot_joints(img_r_i,  pred_kpts_r[idx])
+
+            # prepare label text with score
+            text = f"{class_names[label]} {score:.2f}"
+            xs, ys = b2d_l[:, 0], b2d_l[:, 1]
+            x0, y0 = int(xs.min()), int(ys.min()) - 5
+            obj_labels.append((text, color, x0, y0))
+
+        for text, color, x0, y0 in obj_labels:
+            (tw, th), baseline = cv2.getTextSize(text, font, 0.5, 1)
+            tl = (x0, y0 - th - baseline)
+            br = (x0 + tw + 4, y0 + 2)
+            cv2.rectangle(img_l_i, tl, br, color, -1)
+            cv2.putText(img_l_i, text, (x0 + 2, y0 - baseline + 1),
+                        font, 0.5, (0, 0, 0), 1, cv2.LINE_AA)
+
+    i_src = torch.where(pred_scores > 0.5)[0]
+
+    # draw predictions and ground-truths
+    _draw_on(img_l, img_r, pred_box3ds, pred_ax3ds, pred_class_ids, i_src)
+    combined = np.hstack((img_l, img_r))
     cv2.imwrite(save_path, combined)

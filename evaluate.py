@@ -8,7 +8,7 @@ from contextlib import redirect_stdout
 from kmops import build_model
 from dataset import build_dataset
 from evaluators import build_validator
-from utils.vis import MEAN, STD, normalize_batch, visualize
+from utils.vis import MEAN, STD, normalize_batch, visualize_with_gt
 
 torch.set_float32_matmul_precision("high")
 
@@ -103,7 +103,7 @@ def run(args):
             imgs_r = normalize_batch(batch_img_r, MEAN, STD)
             # visualize each sample in the batch separately
             for idx, res in enumerate(outputs):
-                visualize(
+                visualize_with_gt(
                     imgs_l[idx], imgs_r[idx],
                     res['pred_box3ds'],
                     res['pred_scores'],
