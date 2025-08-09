@@ -92,8 +92,20 @@ class DETRModule(LightningModule):
 
         _, targets = batch
         outputs = self.model.postprocess(outputs, targets["ori_shape"])
-        outputs.update({"loss": loss_dict["total_loss"]})
-        return outputs
+
+        if batch_idx == 0:
+            figure = save_attention_loc(
+                batch[0].image_l, batch[0].image_r, outputs,
+                num_display=min(4, self.batch_size), num_objs=5
+            )
+            # grab the W&B Run
+            self.logger.log_image(
+                key="plot/train_attention_map",
+                images=[figure],
+                caption=[f"epoch_{self.current_epoch}_batch_{batch_idx}"]
+            )
+
+        return {"loss": loss_dict["total_loss"]}
 
     def validation_step(self, batch, batch_idx):
         loss_dict, outputs = self.forward(batch, batch_idx)
@@ -183,23 +195,6 @@ class DETRModule(LightningModule):
         self.validator_r.update_metrics(
             preds_r, targs_r, pred_kpts_r, tart_kpts_r)
 
-        outputs["results"] = results
-        return outputs
-
-    def on_train_batch_end(self, outputs, batch, batch_idx):
-        if batch_idx == 0:
-            figure = save_attention_loc(
-                batch[0].image_l, batch[0].image_r, outputs,
-                num_display=min(4, self.batch_size), num_objs=5
-            )
-            # grab the W&B Run
-            self.logger.log_image(
-                key="plot/train_attention_map",
-                images=[figure],
-                caption=[f"epoch_{self.current_epoch}_batch_{batch_idx}"]
-            )
-
-    def on_validation_batch_end(self, outputs, batch, batch_idx):
         if batch_idx == 0:
             figure = save_attention_loc(
                 batch[0].image_l, batch[0].image_r, outputs,
@@ -212,7 +207,7 @@ class DETRModule(LightningModule):
             )
 
             images, captions = [], []
-            for idx, res in enumerate(outputs["results"]):
+            for idx, res in enumerate(results):
                 img_l, img_r, _ = batch[0].decompose()
                 image = visualize_with_gt(
                     img_l[idx], img_r[idx],
