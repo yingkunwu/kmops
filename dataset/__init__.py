@@ -45,17 +45,17 @@ def pad_and_resize_tensors(image_list, target_list):
         ratio_width = ori_w / new_w
         ratio_height = ori_h / new_h
 
-        target["kpts_pose"] *= torch.as_tensor(
+        target["kpts"] *= torch.as_tensor(
             [ratio_width, ratio_height, 1], dtype=torch.float32)
-        target["kpts_disp"] *= torch.as_tensor(
+        target["disp"] *= torch.as_tensor(
             [ratio_width], dtype=torch.float32)
 
         # area for oks calculation
-        kpts_pose = target["kpts_pose"]
-        if kpts_pose.shape[0] == 0:
+        kpts = target["kpts"]
+        if kpts.shape[0] == 0:
             area = torch.tensor([], dtype=torch.float32)
         else:
-            _, radii, _ = get_min_vol_ellipse(kpts_pose[..., :2])
+            _, radii, _ = get_min_vol_ellipse(kpts[..., :2])
             area = radii[:, 0] * radii[:, 1] * torch.pi
         target["area"] = area
 

@@ -5,7 +5,8 @@ defaults:
 
 # run name for logging weights, loss, metrics, and visualizations' using weights and biases
 run_name: ???
-disable_log: False  # disable wandb.ai
+project_name: "kmops_tod"  # Project name for wandb
+wandb_online: True
 
 # Training configurations
 num_k: 8
@@ -38,8 +39,8 @@ oks_loss_coef: 4.0
 conf_loss_coef: 1.0
 
 dataset:
-  train_pkl: "data/train.pkl"
-  val_pkl: "data/val.pkl"
+  train_pkl: "data/tod_bottle_train.pkl"
+  val_pkl: "data/tod_bottle_val.pkl"
   names:
     0: bottle  # or cup or mug
 

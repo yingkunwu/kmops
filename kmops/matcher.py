@@ -94,7 +94,7 @@ class HungarianMatcher(nn.Module):
         # We rearrange to compute the cost matrices in a batch
         out_prob = rearrange(
             outputs["pred_logits"], 'b q c -> (b q) c').sigmoid()
-        out_pose = rearrange(outputs["pred_pose"], 'b q k n -> (b q) k n')
+        out_kpts = rearrange(outputs["pred_kpts"], 'b q k n -> (b q) k n')
         out_disp = rearrange(outputs["pred_disp"], 'b q k n -> (b q) k n')
         out_kpts_conf = rearrange(
             outputs["pred_conf"], 'b q k n -> (b q) k n').sigmoid()
@@ -102,9 +102,9 @@ class HungarianMatcher(nn.Module):
         # Also concat the target labels and boxes
         tgt_ids = torch.cat(targets["labels"]).long()
         tgt_area = torch.cat(targets["area"])
-        tgt_pose = torch.cat(targets["kpts_pose"])
-        tgt_disp = torch.cat(targets["kpts_disp"])
-        tgt_kpts_vis = tgt_pose[:, :, 2:]
+        tgt_kpts = torch.cat(targets["kpts"])
+        tgt_disp = torch.cat(targets["disp"])
+        tgt_kpts_vis = tgt_kpts[:, :, 2:]
 
         # Compute the classification cost
         alpha = 0.25
@@ -115,14 +115,14 @@ class HungarianMatcher(nn.Module):
             (-torch.log(out_prob + 1e-8))
         cost_class = pos_cost_class[:, tgt_ids] - neg_cost_class[:, tgt_ids]
 
-        cost_oks, cost_kpts_pose = \
-            oks_and_kpts_loss(out_pose, tgt_pose, tgt_area, self.sigmas)
+        cost_oks, cost_kpts = \
+            oks_and_kpts_loss(out_kpts, tgt_kpts, tgt_area, self.sigmas)
 
-        cost_kpts_disp = torch.abs(out_disp[:, None] - tgt_disp[None, :])
-        cost_kpts_disp = cost_kpts_disp * tgt_kpts_vis[None]
-        cost_kpts_disp = cost_kpts_disp.sum(dim=[-1, -2])
+        cost_disp = torch.abs(out_disp[:, None] - tgt_disp[None, :])
+        cost_disp = cost_disp * tgt_kpts_vis[None]
+        cost_disp = cost_disp.sum(dim=[-1, -2])
 
-        cost_kpts = cost_kpts_pose + cost_kpts_disp * 2
+        cost_kpts = cost_kpts + cost_disp * 2
 
         cost_conf = torch.abs(out_kpts_conf[:, None] - tgt_kpts_vis[None, :])
         cost_conf = cost_conf.sum(dim=[-1, -2])

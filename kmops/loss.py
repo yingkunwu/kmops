@@ -98,11 +98,6 @@ class SetCriterion(nn.Module):
         The target boxes are expected in format (center_x, center_y, w, h),
         normalized by the image size.
         """
-        # assert 'pred_logits' in outputs and 'pred_poses' in outputs, \
-        #     'outputs must contain both "pred_logits" and "pred_poses"'
-        # assert all(k in targets for k in ['labels', 'boxes', 'keypoints']), \
-        #     'targets must contain "labels", "boxes", and "keypoints"'
-
         # retrieve the matching between the outputs of the last layer and the
         batch_idx, src_idx, _ = self._get_permutation_idx(indices)
 
@@ -154,29 +149,29 @@ class SetCriterion(nn.Module):
             }
 
         # Compute the keypoint oks loss
-        src_pose = outputs["pred_pose"]
+        src_kpts = outputs["pred_kpts"]
         src_disp = outputs["pred_disp"]
-        tgt_pose = targets["kpts_pose"]
-        tgt_disp = targets["kpts_disp"]
+        tgt_kpts = targets["kpts"]
+        tgt_disp = targets["disp"]
 
         # retrieve the target keypoints according to the matching indices
-        target_pose_o = torch.cat(
-            [t[i] for t, (_, i) in zip(tgt_pose, indices)])
+        target_kpts_o = torch.cat(
+            [t[i] for t, (_, i) in zip(tgt_kpts, indices)])
         target_disp_o = torch.cat(
             [t[i] for t, (_, i) in zip(tgt_disp, indices)])
 
-        src_pose = src_pose[batch_idx, src_idx]
+        src_kpts = src_kpts[batch_idx, src_idx]
         src_disp = src_disp[batch_idx, src_idx]
 
-        loss_oks, loss_kpts_pose = oks_and_kpts_loss(
-            src_pose, target_pose_o, target_area_o, self.sigmas)
+        loss_oks, loss_kpts = oks_and_kpts_loss(
+            src_kpts, target_kpts_o, target_area_o, self.sigmas)
 
-        target_kpts_vis_o = target_pose_o[..., 2:]
-        loss_kpts_disp = F.l1_loss(src_disp, target_disp_o, reduction='none')
-        loss_kpts_disp = loss_kpts_disp * target_kpts_vis_o
-        loss_kpts_disp = loss_kpts_disp.sum(dim=[-1, -2])
+        target_kpts_vis_o = target_kpts_o[..., 2:]
+        loss_disp = F.l1_loss(src_disp, target_disp_o, reduction='none')
+        loss_disp = loss_disp * target_kpts_vis_o
+        loss_disp = loss_disp.sum(dim=[-1, -2])
 
-        loss_kpts = loss_kpts_pose + loss_kpts_disp * 2
+        loss_kpts = loss_kpts + loss_disp * 2
 
         # visibility loss
         src_conf = outputs['pred_conf'][batch_idx, src_idx]

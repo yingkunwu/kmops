@@ -20,14 +20,12 @@ def inference(KMOPS, samples, targets, device):
 
     results = []  # will hold per-sample dicts
     for i in range(len(targets['kpts_3d'])):
-
         scores = out['score'][i]
         labels = out['label'][i]
         k2d_l = out['kpts_l'][i]
         k2d_r = out['kpts_r'][i]
         conf = out['conf'][i]
 
-        # decode & project bboxes and axes
         PL = targets['proj_matrix_l'][i].to(torch.float32)
         PR = targets['proj_matrix_r'][i].to(torch.float32)
         baseline = targets['baseline'][i].to(torch.float32)

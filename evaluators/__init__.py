@@ -11,7 +11,7 @@ def build_validator(cfg, task=None):
         names = OmegaConf.to_container(names, resolve=True)
 
     if task == "pose":
-        validator = PoseValidator(names, cfg.dataset.kpt_type)
+        validator = PoseValidator(names, cfg.num_k)
     elif task == "pose6d":
         classes = list(names.values())
         validator = Pose6DValidator(classes, use_matches_for_pose=True)

@@ -202,20 +202,20 @@ class Collect(object):
         kpts_mask = torch.minimum(kpts2d_l[..., 2:], kpts2d_r[..., 2:])
         kpts2d_mid = (kpts2d_l + kpts2d_r).mul(0.5)
         kpts2d_mid[..., 2:] = kpts_mask
-        target["kpts_pose"] = kpts2d_mid
-        target["kpts_disp"] = kpts2d_l[..., :1] - kpts2d_r[..., :1]
+        target["kpts"] = kpts2d_mid
+        target["disp"] = kpts2d_l[..., :1] - kpts2d_r[..., :1]
 
         # Remove objects that are not visible in both views
         visible = (kpts2d_l[:, :, 2] > 0) & (kpts2d_r[:, :, 2] > 0)
         num_visible_pts = torch.sum(visible, dim=1)
 
         keep = num_visible_pts > 3
-        for key in ["kpts_pose", "kpts_disp", "kpts_3d", "labels",
+        for key in ["kpts", "disp", "kpts_3d", "labels",
                     "kpts_canonical", "size", "R", "t"]:
             target[key] = target[key][keep]
 
         # ensure floating type is float32
-        for key in ["kpts_pose", "kpts_disp", "kpts_3d", "kpts_canonical",
+        for key in ["kpts", "disp", "kpts_3d", "kpts_canonical",
                     "size", "R", "t"]:
             target[key] = target[key].to(torch.float32)
 

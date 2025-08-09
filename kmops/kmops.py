@@ -136,11 +136,11 @@ class KMOPS(nn.Module):
             results["gt_label"] = []
 
             for batch_idx in range(len(targets['labels'])):
-                kpts_pose = to_cpu(targets['kpts_pose'][batch_idx])
-                kpts_disp = to_cpu(targets['kpts_disp'][batch_idx])
+                kpts = to_cpu(targets['kpts'][batch_idx])
+                disp = to_cpu(targets['disp'][batch_idx])
                 label = to_cpu(targets['labels'][batch_idx])
 
-                kpts_l, kpts_r = kpts_disp_to_left_right(kpts_pose, kpts_disp)
+                kpts_l, kpts_r = kpts_disp_to_left_right(kpts, disp)
                 kpts_l *= rearrange(image_size[batch_idx], 'n -> 1 1 n')
                 kpts_r *= rearrange(image_size[batch_idx], 'n -> 1 1 n')
 
