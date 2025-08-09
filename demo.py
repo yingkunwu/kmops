@@ -9,9 +9,12 @@ import torchvision.transforms.functional as F
 
 from kmops import build_model
 from utils.util import NestedTensor
-from utils.vis import MEAN, STD, visualize
+from utils.vis import visualize
 
 torch.set_float32_matmul_precision("high")
+
+MEAN = [0.485, 0.456, 0.406]
+STD = [0.229, 0.224, 0.225]
 
 
 def preprocess(img_l, img_r, target_size):

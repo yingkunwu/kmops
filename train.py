@@ -214,7 +214,7 @@ class DETRModule(LightningModule):
             images, captions = [], []
             for idx, res in enumerate(outputs["results"]):
                 img_l, img_r, _ = batch[0].decompose()
-                images.append(visualize_with_gt(
+                image = visualize_with_gt(
                     img_l[idx], img_r[idx],
                     res['pred_box3ds'],
                     res['pred_scores'],
@@ -227,7 +227,8 @@ class DETRModule(LightningModule):
                     batch[1]['proj_matrix_l'][idx].cpu().to(torch.float32),
                     batch[1]['proj_matrix_r'][idx].cpu().to(torch.float32),
                     normalize_image=True
-                ))
+                )
+                images.append(image[..., ::-1])  # convert BGR to RGB
                 captions.append(f"epoch_{self.current_epoch}_idx_{idx}")
                 if idx >= 3:
                     break
@@ -301,7 +302,17 @@ def run(cfg: DictConfig):
                       callbacks=callbacks)
 
     module = DETRModule(cfg)
-    trainer.fit(module, train_loader, val_loader)
+
+    # Check that the checkpoint path exists before passing to Trainer
+    if len(cfg.ckpt_path) > 0:
+        if not os.path.exists(cfg.ckpt_path):
+            raise FileNotFoundError(
+                f"Checkpoint path '{cfg.ckpt_path}' does not exist")
+        ckpt = cfg.ckpt_path
+    else:
+        ckpt = None
+
+    trainer.fit(module, train_loader, val_loader, ckpt_path=ckpt)
 
 
 if __name__ == "__main__":

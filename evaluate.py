@@ -8,7 +8,7 @@ from contextlib import redirect_stdout
 from kmops import build_model
 from dataset import build_dataset
 from evaluators import build_validator
-from utils.vis import MEAN, STD, normalize_batch, visualize_with_gt
+from utils.vis import visualize_with_gt
 
 torch.set_float32_matmul_precision("high")
 
@@ -97,12 +97,11 @@ def run(args):
 
         if bi % 100 == 0:
             batch_img_l, batch_img_r, _ = bs.decompose()
-            imgs_l = normalize_batch(batch_img_l, MEAN, STD)
-            imgs_r = normalize_batch(batch_img_r, MEAN, STD)
             # visualize each sample in the batch separately
             for idx, res in enumerate(outputs):
                 visualize_with_gt(
-                    imgs_l[idx], imgs_r[idx],
+                    batch_img_l[idx],
+                    batch_img_r[idx],
                     res['pred_box3ds'],
                     res['pred_scores'],
                     res['pred_class_ids'],
@@ -113,7 +112,8 @@ def run(args):
                     cfg.dataset.names,
                     bt['proj_matrix_l'][idx].cpu().to(torch.float32),
                     bt['proj_matrix_r'][idx].cpu().to(torch.float32),
-                    os.path.join(vis_dir, f"batch_{bi}_{idx}.png")
+                    os.path.join(vis_dir, f"batch_{bi}_{idx}.png"),
+                    normalize_image=True
                 )
 
     result_log_path = os.path.join(args.wandb_folder, 'eval_result.log')

@@ -34,9 +34,6 @@ colors_rgb = [
     (0, 85, 255),
 ]
 
-MEAN = [0.485, 0.456, 0.406]
-STD = [0.229, 0.224, 0.225]
-
 
 def plot_joints(img, joints, c=(0, 255, 0)):
     """
@@ -120,19 +117,6 @@ def plot_axes(image, axis, thickness=1):
     return image
 
 
-def normalize_batch(img_batch, mean, std):
-    """
-    Denormalize a batch of images in CHW format.
-    """
-    mean = np.array(mean)[:, None, None]
-    std = np.array(std)[:, None, None]
-    imgs = img_batch.cpu().numpy() * std + mean
-    imgs = np.clip(imgs * 255, 0, 255).astype(np.uint8)
-    # from CHW to HWC
-    return [cv2.cvtColor(img.transpose(1, 2, 0), cv2.COLOR_RGB2BGR)
-            for img in imgs]
-
-
 def match_predictions(src_kpts, tgt_kpts, src_scores):
     cost_kpts = (src_kpts[:, None, :] - tgt_kpts[None, :, :]) ** 2
     cost_kpts = torch.sqrt(torch.sum(cost_kpts + 1e-15, dim=-1))
@@ -162,11 +146,11 @@ def visualize_with_gt(
         img_l = norm_image(img_l)
         img_r = norm_image(img_r)
         # convert tensor to numpy
-        img_l = img_l.mul(255).clamp(0, 255).byte().permute(1, 2, 0)
-        img_l = to_numpy(img_l).copy()
-        # convert tensor to numpy
-        img_r = img_r.mul(255).clamp(0, 255).byte().permute(1, 2, 0)
-        img_r = to_numpy(img_r).copy()
+        img_l = torch_img_to_numpy_img(img_l)
+        img_r = torch_img_to_numpy_img(img_r)
+        # convert RGB to BGR for OpenCV
+        img_l = img_l[..., ::-1].copy()
+        img_r = img_r[..., ::-1].copy()
 
     img_l_gt = img_l.copy()
     img_r_gt = img_r.copy()
@@ -243,11 +227,11 @@ def visualize(
         img_l = norm_image(img_l)
         img_r = norm_image(img_r)
         # convert tensor to numpy
-        img_l = img_l.mul(255).clamp(0, 255).byte().permute(1, 2, 0)
-        img_l = to_numpy(img_l)
-        # convert tensor to numpy
-        img_r = img_r.mul(255).clamp(0, 255).byte().permute(1, 2, 0)
-        img_r = to_numpy(img_r)
+        img_l = torch_img_to_numpy_img(img_l)
+        img_r = torch_img_to_numpy_img(img_r)
+        # convert RGB to BGR for OpenCV
+        img_l = img_l[..., ::-1].copy()
+        img_r = img_r[..., ::-1].copy()
 
     font = cv2.FONT_HERSHEY_SIMPLEX
 
@@ -318,16 +302,11 @@ def norm_atten_map(atten_map):
     return atten_map
 
 
-def torch_img_to_bgr_img(image):
+def torch_img_to_numpy_img(image):
     # convert tensor to numpy
     image = image.mul(255).clamp(0, 255).byte().permute(1, 2, 0)
     image = to_numpy(image)
-
-    # resize image and convert RGB to BGR
-    resized_image = cv2.resize(
-        image.copy(), (image.shape[1]//4, image.shape[0]//4))
-
-    return resized_image
+    return image
 
 
 def save_attention_map(
@@ -339,6 +318,10 @@ def save_attention_map(
 
     if normalize_image:
         batch_image = norm_image(batch_image)
+        # resize image
+        batch_image = cv2.resize(
+            batch_image.copy(),
+            (batch_image.shape[1]//4, batch_image.shape[0]//4))
 
     fig = plt.figure(figsize=(30, 30))
     fig.subplots_adjust(
@@ -348,7 +331,7 @@ def save_attention_map(
     outer = gridspec.GridSpec(1, num_display, wspace=0.15)
 
     for b in range(num_display):
-        image = torch_img_to_bgr_img(batch_image[b])
+        image = torch_img_to_numpy_img(batch_image[b])
         attn_map = batch_attn[b]
         obj_box = to_numpy(batch_out[b])
 
@@ -428,7 +411,9 @@ def save_attention_loc(batch_image_l, batch_image_r, batch_outputs,
     outer = gridspec.GridSpec(1, num_display * 2, wspace=0.15)
 
     for b in range(num_display * 2):
-        image = torch_img_to_bgr_img(batch_image[b % 2][b // 2])
+        image = torch_img_to_numpy_img(batch_image[b % 2][b // 2])
+        image = cv2.resize(
+            image.copy(), (image.shape[1]//4, image.shape[0]//4))
         sample_location = to_numpy(batch_loc[b % 2][b // 2])
         attn_weight = to_numpy(batch_weight[b % 2][b // 2])
 

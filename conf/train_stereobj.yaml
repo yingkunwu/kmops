@@ -7,6 +7,7 @@ defaults:
 run_name: ???
 project_name: "kmops_stereobj"  # Project name for wandb
 wandb_online: True
+ckpt_path: ""  # if want to resume training from a specific checkpoint
 
 # Training configurations
 num_k: 8
