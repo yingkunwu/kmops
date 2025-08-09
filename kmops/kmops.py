@@ -150,8 +150,9 @@ class KMOPS(nn.Module):
 
         return results
 
+    @staticmethod
     @torch.no_grad()
-    def reprojection(self, PL, PR, baseline, k2d_l, k2d_r):
+    def reprojection(PL, PR, baseline, k2d_l, k2d_r):
         """
         Reproject 2D keypoints to 3D using the projection matrices and
         stereo baseline.
@@ -170,8 +171,9 @@ class KMOPS(nn.Module):
         k3d = reproject_2d_to_3d_batch(k2d_l, k2d_r, Q)
         return k3d
 
+    @staticmethod
     @torch.no_grad()
-    def posefitting(self, k3d, conf=None):
+    def posefitting(k3d, conf=None):
         """
         Fit the pose of the 3D keypoints to get the sizes and poses.
 
