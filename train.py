@@ -90,10 +90,9 @@ class DETRModule(LightningModule):
             prog_bar=True,
             batch_size=self.batch_size)
 
-        _, targets = batch
-        outputs = self.model.postprocess(outputs, targets["ori_shape"])
-
         if batch_idx == 0:
+            _, targets = batch
+            outputs = self.model.postprocess(outputs, targets["ori_shape"])
             figure = save_attention_loc(
                 batch[0].image_l, batch[0].image_r, outputs,
                 num_display=min(4, self.batch_size), num_objs=5
