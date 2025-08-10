@@ -3,6 +3,11 @@
 
 This is the official code release for our paper "****". **[[Paper]]  [[Project Page]]**
 
+<video controls width="320" loop muted>
+    <source src="teaser/biolab_scene_1_07162020_14.mp4" type="video/mp4">
+    Your browser does not support the video tag.
+</video>
+
 
 ## Table of Contents
 
