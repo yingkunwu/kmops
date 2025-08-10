@@ -19,8 +19,8 @@ This is the official code release for our paper "****". **[[Paper]]  [[Project P
     ```
     docker build -t kmops docker/
     ```
-    > This docker has been tested on:
-    > NVIDIA GeForce RTX 4090 / Driver version: 535.230.02 / CUDA version: 12.2
+    > This docker has been tested on: <br/>
+    > NVIDIA GeForce RTX 4090 / Driver version: 535.230.02 / CUDA version: 12.2 <br/>
     > NVIDIA H100 PCIe / Driver version: 550.127.08 / CUDA: version 12.4
 
 2. Run Docker container
