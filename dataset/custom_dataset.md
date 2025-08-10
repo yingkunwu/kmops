@@ -227,4 +227,4 @@ if __name__ == "__main__":
 
 ### Acknowledgments
 
-This data preparation methodology is adapted from DetAny3D.
+This data preparation methodology is adapted from [DetAny3D](https://github.com/OpenDriveLab/DetAny3D).
