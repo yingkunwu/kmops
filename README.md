@@ -3,7 +3,9 @@
 
 This is the official code release for our paper "****". **[[Paper]]  [[Project Page]]**
 
-<img src="teaser/biolab_scene_1_07162020_14.gif" alt="demo" width="960"/>
+<video autoplay loop muted playsinline width="960">
+    <source src="teaser/biolab_scene_1_07162020_14.gif" type="image/gif" />
+</video>
 
 ## Table of Contents
 
