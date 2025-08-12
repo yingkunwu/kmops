@@ -12,7 +12,6 @@ ckpt_path: ""  # if want to resume training from a specific checkpoint
 # Training configurations
 num_k: 8
 aux_loss: True  # whether to use auxiliary loss for each decoder
-pretrained_model: ""  # Path to the pre-trained model weight, if any
 gpu: 0  # 0
 batch_size: 8
 num_workers: 8  # Number of workers for data loading
