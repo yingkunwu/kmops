@@ -18,8 +18,8 @@ def get_3d_bbox_batch(sizes, shifts):
     Returns:
         corners: (M, 8, 3) array of each box's 8 corner coordinates
     """
-    sizes = np.asarray(sizes, dtype=float).reshape(-1, 3)
-    shifts = np.asarray(shifts, dtype=float).reshape(-1, 3)
+    sizes = sizes.reshape(-1, 3)
+    shifts = shifts.reshape(-1, 3)
 
     # Precompute the 8 "corner signs" once.
     signs = np.array(
@@ -42,8 +42,6 @@ def transform_batch(points, sRT):
     Returns:
         transformed: (M, 3, N) array of transformed points
     """
-    points = np.asarray(points, dtype=float)
-    sRT = np.asarray(sRT, dtype=float)
     M, _, N = points.shape
 
     # Make homogeneous coords: (M, 4, N).
@@ -69,10 +67,8 @@ def compute_3d_iou_batch(sRT1, sRT2, size1, size2, class_id1, class_id2,
     Returns:
         ious:  (M, N) pairwise IoU matrix
     """
-    sRT1 = np.asarray(sRT1, dtype=float)
-    sRT2 = np.asarray(sRT2, dtype=float)
-    size1 = np.asarray(size1, dtype=float).reshape(-1, 3)
-    size2 = np.asarray(size2, dtype=float).reshape(-1, 3)
+    size1 = size1.reshape(-1, 3)
+    size2 = size2.reshape(-1, 3)
 
     def asymmetric_3d_iou(sRT1_i, sRT2_i, size1_i, size2_i):
         """
@@ -114,7 +110,7 @@ def compute_3d_iou_batch(sRT1, sRT2, size1, size2, class_id1, class_id2,
                 [0.0, sin_t,  cos_t,   0.0],
                 [0.0,   0.0,    0.0,   1.0],
             ],
-            dtype=float,
+            dtype=np.float32,
         )
 
     # sample n rotations around X and compute all IoUs
@@ -124,7 +120,7 @@ def compute_3d_iou_batch(sRT1, sRT2, size1, size2, class_id1, class_id2,
     for t in thetas:
         R = x_rotation_matrix(t)
         # rotate every M pose by R (broadcast matmul)
-        rotated_sRT1 = sRT1 @ R           # still shape (M,4,4)
+        rotated_sRT1 = sRT1 @ R  # still shape (M,4,4)
         iou_mat = asymmetric_3d_iou(rotated_sRT1, sRT2, size1, size2)
         all_ious.append(iou_mat)
 
@@ -163,9 +159,6 @@ def compute_rt_error_batch(sRT1, sRT2, class_id, synset_names):
         errors[i,j,0] = rotation error (degrees)
         errors[i,j,1] = translation error (cm)
     """
-    sRT1 = np.asarray(sRT1, float)
-    sRT2 = np.asarray(sRT2, float)
-
     # Extract R & T
     R1 = sRT1[:, :3, :3]  # (M,3,3)
     T1 = sRT1[:, :3,  3]  # (M,3)
@@ -333,6 +326,11 @@ class Pose6DValidator:
             assert self.iou_pose_thres in self.iou_thres
 
         self.classes = ['mean'] + synset_names
+        self.iou_ap = None
+        self.iou_acc = None
+        self.pose_ap = None
+        self.pose_acc = None
+
         self.init_metrics()
 
     def init_metrics(self):
@@ -353,19 +351,24 @@ class Pose6DValidator:
     def add_result(self, result):
         """Add a single prediction result."""
         assert isinstance(result, dict), "Result must be a dictionary."
-        required_keys = ['gt_class_ids', 'gt_RTs', 'gt_scales',
-                         'pred_class_ids', 'pred_RTs', 'pred_scales',
-                         'pred_scores']
-        for key in required_keys:
+        for key in ['gt_class_ids', 'gt_RTs', 'gt_scales',
+                    'pred_class_ids', 'pred_RTs', 'pred_scales',
+                    'pred_scores']:
             assert key in result, f"Missing required key: {key}"
+        # Validate that each required entry is a list or numpy array
+        for key in ['gt_class_ids', 'gt_RTs', 'gt_scales',
+                    'pred_class_ids', 'pred_RTs', 'pred_scales',
+                    'pred_scores']:
+            assert isinstance(result[key], (list, np.ndarray)), \
+                f"'{key}' must be a list or np.array, got {type(result[key])}"
 
-        gt_ids = np.array(result['gt_class_ids']).astype(int)
-        gt_RT = np.array(result['gt_RTs'])
-        gt_sz = np.array(result['gt_scales'])
-        pr_ids = np.array(result['pred_class_ids']).astype(int)
-        pr_RT = np.array(result['pred_RTs'])
-        pr_sz = np.array(result['pred_scales'])
-        pr_sc = np.array(result['pred_scores'])
+        gt_ids = np.asarray(result['gt_class_ids'], dtype=np.int32)
+        gt_RT = np.asarray(result['gt_RTs'], dtype=np.float32)
+        gt_sz = np.asarray(result['gt_scales'], dtype=np.float32)
+        pr_ids = np.asarray(result['pred_class_ids'], dtype=np.int32)
+        pr_RT = np.asarray(result['pred_RTs'], dtype=np.float32)
+        pr_sz = np.asarray(result['pred_scales'], dtype=np.float32)
+        pr_sc = np.asarray(result['pred_scores'], dtype=np.float32)
 
         if not (len(gt_ids) or len(pr_ids)):
             return
@@ -433,6 +436,10 @@ class Pose6DValidator:
                 self.iou_ap[cid, t], self.iou_acc[cid, t] = \
                     compute_ap_acc(pm[t], sc, gm[t])
 
+            self.data[cid]['iou'].pop('pm', None)  # clear data for this class
+            self.data[cid]['iou'].pop('scores', None)
+            self.data[cid]['iou'].pop('gm', None)
+
             # pose
             pm_p = (np.concatenate(self.data[cid]['pose']['pm'], axis=2)
                     if self.data[cid]['pose']['pm']
@@ -449,6 +456,10 @@ class Pose6DValidator:
                 for si in range(len(self.shift_thres)+1):
                     self.pose_ap[cid, di, si], self.pose_acc[cid, di, si] \
                         = compute_ap_acc(pm_p[di, si], sc_p, gm_p[di, si])
+
+            self.data[cid]['pose'].pop('pm', None)  # clear data for this class
+            self.data[cid]['pose'].pop('scores', None)
+            self.data[cid]['pose'].pop('gm', None)
 
         # global
         self.iou_ap[0] = np.nanmean(self.iou_ap[1:], axis=0)
