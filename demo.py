@@ -20,7 +20,7 @@ MEAN = [0.485, 0.456, 0.406]
 STD = [0.229, 0.224, 0.225]
 
 TARGET_DIR = "8keypoints_o2o_stereobj"
-FILE_ID = "1FpzqUp_yxRkaEcyZcvCoNKKgHG0U7dUt"
+FILE_ID = "1I8Zo8qardnml8EGhLZwWL3HqjzJITfrW"
 ZIP_PATH = TARGET_DIR + ".zip"
 
 

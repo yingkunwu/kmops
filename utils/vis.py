@@ -248,14 +248,14 @@ def visualize(
             # project and draw 3D bbox on left/right
             b2d_l = project_3d_to_2d_batch(box3d, proj_mat_l).numpy()
             b2d_r = project_3d_to_2d_batch(box3d, proj_mat_r).numpy()
-            plot_3d_bbox(img_l_i, b2d_l, color=color)
-            plot_3d_bbox(img_r_i, b2d_r, color=color)
+            plot_3d_bbox(img_l_i, b2d_l, color=color, thickness=2)
+            plot_3d_bbox(img_r_i, b2d_r, color=color, thickness=2)
 
             # project and draw axes
             a2d_l = project_3d_to_2d_batch(ax3d, proj_mat_l).to(int).numpy()
             a2d_r = project_3d_to_2d_batch(ax3d, proj_mat_r).to(int).numpy()
-            plot_axes(img_l_i, a2d_l)
-            plot_axes(img_r_i, a2d_r)
+            plot_axes(img_l_i, a2d_l, thickness=2)
+            plot_axes(img_r_i, a2d_r, thickness=2)
 
             # plot predicted keypoints on left and right images
             plot_joints(img_l_i, pred_kpts_l[idx])

@@ -51,7 +51,7 @@ def decode_kpts_to_box(kps, conf=None):
     returns: [length, width, height]
     """
     n = kps.shape[0]
-    assert n in (7, 8, 32) and kps.shape[1] == 3
+    assert n in (7, 8, 20, 32) and kps.shape[1] == 3
 
     if conf is not None:
         w = conf.reshape(-1)
@@ -73,6 +73,13 @@ def decode_kpts_to_box(kps, conf=None):
         ls_ws = [lw(1, 0, 0.5), lw(2, 0, 0.5), lw(1, 2)]
         ws_ws = [lw(3, 0, 0.5), lw(4, 0, 0.5), lw(3, 4)]
         hs_ws = [lw(5, 0, 0.5), lw(6, 0, 0.5), lw(5, 6)]
+    elif n == 20:
+        ls_ws = [lw(0, 1), lw(3, 2), lw(4, 5), lw(7, 6),
+                 lw(12, 13), lw(14, 15), lw(16, 17), lw(18, 19)]
+        ws_ws = [lw(0, 3), lw(1, 2), lw(4, 7), lw(5, 6),
+                 lw(8, 9), lw(10, 11), lw(16, 18), lw(17, 19)]
+        hs_ws = [lw(0, 4), lw(1, 5), lw(2, 6), lw(3, 7),
+                 lw(8, 10), lw(9, 11), lw(12, 14), lw(13, 15)]
     else:  # n == 32
         ls_ws = [
             lw(0, 1), lw(3, 2), lw(4, 5), lw(7, 6),
@@ -135,6 +142,9 @@ def procrustes_alignment(pts1, pts2, weight=None):
     """
     assert pts1.shape == pts2.shape and pts1.dim() == 2 and pts1.size(1) == 3
 
+    # avoid SVD issues with all-zero confidence
+    if weight is not None:
+        weight = None if torch.sum(weight) < 5 else weight
     if weight is None:
         weight = torch.ones(
             pts1.shape[0], device=pts1.device, dtype=pts1.dtype)
@@ -355,6 +365,8 @@ class Box:
                 return all 8 corners of the bounding box.
             If num_k = 7,
                 return the box center and the 6 center points of the 6 faces.
+            If num_k = 20,
+                return 20 keypoints with 8 corners and 12 interpolated points.
             if num_k = 32,
                 return 32 keypoints with 8 corners and 24 interpolated points.
         canonical: if True, return the canonical keypoints.
@@ -363,7 +375,7 @@ class Box:
         Returns:
             kpts3d: (num_k, 3) tensor of keypoints in 3D
         """
-        assert num_k in (7, 8, 32), "num_k must be one of (7, 8, 32)"
+        assert num_k in (7, 8, 20, 32), "num_k must be either 7, 8 or 32"
 
         # compute 3D corners in world/camera coords
         if canonical:
@@ -383,6 +395,8 @@ class Box:
                 [4, 5, 6, 7],  # bottom
             ]
             kpts3d = torch.stack([kpts3d[face].mean(dim=0) for face in faces])
+        elif num_k == 20:
+            kpts3d = interpolate(kpts3d, self.interp, [0.5])
         elif num_k == 32:
             kpts3d = interpolate(kpts3d, self.interp, [0.332, 0.667])
 
@@ -396,8 +410,7 @@ class Box:
         flip_pairs: list of pairs of indices to flip
         symmetric_type: symmetry type
         """
-        assert kps.shape[0] in (7, 8, 32), \
-            "Number of keypoints must be one of (7, 8, 32)"
+        assert kps.shape[0] in (7, 8, 20, 32), "Keypoints must have 7 or 8 points"
         assert kps.shape[1] == 3, "Keypoints must have shape (num_k, 3)"
 
         # convert numpy inputs to torch tensors
@@ -408,8 +421,6 @@ class Box:
                 conf = to_tensor(conf, dtype=torch.float32)
             # use 0.5 as threshold
             conf = (conf > 0.5).float()
-            # avoid SVD issues with all-zero confidence
-            conf = None if torch.sum(conf) < 5 else conf
 
         size = decode_kpts_to_box(kps, conf)
         R = torch.eye(3, dtype=kps.dtype)
