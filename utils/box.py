@@ -410,7 +410,8 @@ class Box:
         flip_pairs: list of pairs of indices to flip
         symmetric_type: symmetry type
         """
-        assert kps.shape[0] in (7, 8, 20, 32), "Keypoints must have 7 or 8 points"
+        assert kps.shape[0] in (7, 8, 20, 32), \
+            "Keypoints must have 7 or 8 points"
         assert kps.shape[1] == 3, "Keypoints must have shape (num_k, 3)"
 
         # convert numpy inputs to torch tensors
