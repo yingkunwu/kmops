@@ -1,5 +1,6 @@
 from .kmops import KMOPS
 from .resnet import Resnet
+from .dinov3_adapter import DINOv3STAs
 from .encoder import HybridEncoder
 from .decoder import DeformableTransformer
 from .matcher import HungarianMatcher
@@ -12,6 +13,15 @@ def build_backbone(cfg):
         backbone = Resnet("resnet50", True, True, False)
     elif backbone in ["resnet101"]:
         backbone = Resnet("resnet101", True, True, False)
+    elif backbone == "dinov3":
+        backbone = DINOv3STAs(
+            name="dinov3_vits16",
+            weights_path="./dinov3_vits16_pretrain_lvd1689m-08c60483.pth",
+            interaction_indexes=[5, 8, 11],
+            finetune=True,
+            conv_inplane=32,
+            hidden_dim=256,
+        )
     else:
         raise ValueError(f"Backbone {backbone} not supported")
 
