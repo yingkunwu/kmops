@@ -174,11 +174,36 @@ class Collect(object):
             size_list.append(size)
             R_list.append(R)
             t_list.append(t)
-        target["kpts_3d"] = torch.stack(target["kpts_3d"], dim=0)
-        target["kpts_canonical"] = torch.stack(target["kpts_canonical"], dim=0)
-        target["size"] = torch.stack(size_list, dim=0)
-        target["R"] = torch.stack(R_list, dim=0)
-        target["t"] = torch.stack(t_list, dim=0)
+
+        target["kpts_3d"] = (
+            torch.stack(target["kpts_3d"], dim=0)
+            if len(target["kpts_3d"]) > 0
+            else torch.zeros((0, 8, 3), dtype=torch.float64)
+        )
+
+        target["kpts_canonical"] = (
+            torch.stack(target["kpts_canonical"], dim=0)
+            if len(target["kpts_canonical"]) > 0
+            else torch.zeros((0, 8, 3), dtype=torch.float64)
+        )
+
+        target["size"] = (
+            torch.stack(size_list, dim=0)
+            if len(size_list) > 0
+            else torch.zeros((0, 3), dtype=torch.float64)
+        )
+
+        target["R"] = (
+            torch.stack(R_list, dim=0)
+            if len(R_list) > 0
+            else torch.zeros((0, 3, 3), dtype=torch.float64)
+        )
+
+        target["t"] = (
+            torch.stack(t_list, dim=0)
+            if len(t_list) > 0
+            else torch.zeros((0, 3), dtype=torch.float64)
+        )
 
         kpts3d = target["kpts_3d"].clone()
         kpts2d_l = project_3d_to_2d_batch(kpts3d, proj_matrix_l)
@@ -209,7 +234,7 @@ class Collect(object):
         visible = (kpts2d_l[:, :, 2] > 0) & (kpts2d_r[:, :, 2] > 0)
         num_visible_pts = torch.sum(visible, dim=1)
 
-        keep = num_visible_pts > 3
+        keep = num_visible_pts > 2
         for key in ["kpts", "disp", "kpts_3d", "labels",
                     "kpts_canonical", "size", "R", "t"]:
             target[key] = target[key][keep]

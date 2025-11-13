@@ -20,6 +20,8 @@ def get_flip_pairs(obj_name):
         flip_pairs = [[0, 3], [4, 7], [5, 6], [1, 2]]
     elif obj_name in ["microplate", "tube_rack"]:
         flip_pairs = [[0, 1], [2, 3], [4, 5], [6, 7]]
+    elif obj_name in ['Car', 'Pedestrian', 'Cyclist', 'Van']:
+        flip_pairs = [[0, 1], [2, 3], [4, 5], [6, 7]]
     else:
         flip_pairs = []
 
