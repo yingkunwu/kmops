@@ -55,11 +55,11 @@ Each `.pkl` file should be a list of dictionary samples with the following keys:
 ```python
 {
   "image_id": str,
-  "img_path": str,        # Path to the RGB image
-  "proj_matrix_l": list,  # Left calibrated camera projection matrix, shape (3, 4)
-  "proj_matrix_4": list,  # Right calibrated camera projection matrix, shape (3, 4)
-  "baseline": float       # The calibrated stereo camera baseline
-  "obj_list": [           # List of 3D object annotations
+  "img_path": str or list[str_l, str_r],  # Path to the RGB image
+  "proj_matrix_l": list,                  # Left calibrated camera projection matrix, shape (3, 4)
+  "proj_matrix_r": list,                  # Right calibrated camera projection matrix, shape (3, 4)
+  "baseline": float                       # The calibrated stereo camera baseline
+  "obj_list": [                           # List of 3D object annotations
     {
       "obj_name": str           # Name of the object for classification
       "label": int              # Label of the object for classification
