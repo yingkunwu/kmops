@@ -96,6 +96,7 @@ This is the official code release for our paper "****". **[[Paper]]  [[Project P
     For more datails on how the data in pkl files are organized and how to prepare for custom dataset, please refer to [dataset/custom_dataset.md](dataset/custom_dataset.md).
 
 3. Specify .pkl path in configs
+
    For example in [conf/train_stereobj.yaml](conf/train_stereobj.yaml), specify the paths as shown in the following:
    ```
    dataset:
