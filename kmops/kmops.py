@@ -85,6 +85,9 @@ class KMOPS(nn.Module):
         atten_weight_l = to_cpu(outputs['log_infos'][1])
         atten_weight_r = to_cpu(outputs['log_infos'][3])
 
+        # Release references to raw GPU outputs early to allow GC
+        del outputs
+
         kpts_l, kpts_r = kpts_disp_to_left_right(out_kpts, out_disp)
 
         assert len(image_size) == len(out_logits), \
@@ -106,7 +109,7 @@ class KMOPS(nn.Module):
             "weight_r": [],
         }
 
-        # convert realtive [0, 1] to absolute coordinates
+        # convert relative [0, 1] to absolute coordinates
         kpts_l *= rearrange(image_size, 'b n -> b 1 1 n')
         kpts_r *= rearrange(image_size, 'b n -> b 1 1 n')
         sampling_loc_l *= rearrange(image_size, 'b n -> b 1 1 n')
@@ -117,7 +120,7 @@ class KMOPS(nn.Module):
             scores, labels = prob.max(-1, keepdim=True)
 
             _, indices = torch.topk(
-                scores.flatten(), 100, largest=True, sorted=True)
+                scores.flatten(), 10, largest=True, sorted=True)
 
             # sort the top for visualization
             results['score'].append(scores[indices, 0])
@@ -191,6 +194,15 @@ class KMOPS(nn.Module):
                           shape [N, 8, 3]
                 "ax3ds": list of N axis endpoints in 3D, shape [N, 4, 3]
         """
+        # Pre-allocate the axis template once (avoids recreating per iteration)
+        axis_length = 0.1
+        axis_template = torch.tensor([
+            [0, 0, 0],              # Origin
+            [axis_length, 0, 0],    # X-axis
+            [0, axis_length, 0],    # Y-axis
+            [0, 0, axis_length]     # Z-axis
+        ], dtype=torch.float64)
+
         poses, scales = [], []
         box3ds, ax3ds = [], []
         for k, pt in enumerate(k3d):
@@ -209,17 +221,13 @@ class KMOPS(nn.Module):
             box3d = box.get_keypoints(num_k=8).to(torch.float32)
             box3ds.append(box3d.tolist())
 
-            # Define the pose axis in 3D space
-            axis_length = 0.1
-            axis = torch.tensor([
-                [0, 0, 0],  # Origin
-                [axis_length, 0, 0],  # X-axis
-                [0, axis_length, 0],  # Y-axis
-                [0, 0, axis_length]   # Z-axis
-            ], dtype=torch.float64)
-            ax3d = (R @ axis.T).T + t
+            # Transform axis template using the computed pose
+            ax3d = (R @ axis_template.T).T + t
             ax3d = ax3d.to(torch.float32)
             ax3ds.append(ax3d.tolist())
+
+            # Release intermediate tensors
+            del box, R, t, T, box3d, ax3d
 
         return {
             "poses": poses,

@@ -311,7 +311,16 @@ def compute_ap_acc(pred_matches, pred_scores, gt_matches):
 
 
 class Pose6DValidator:
-    """Class to validate 6D pose estimation results."""
+    """Class to validate 6D pose estimation results.
+
+    Memory optimization notes:
+    - match arrays (pm, gm) are stored with int16 dtype instead of int64
+      to reduce memory by 4x. This limits max predictions per image to
+      32767, which is sufficient for object detection.
+    - Accumulated lists are explicitly deleted during compute_metrics()
+      before concatenation to avoid holding both the list and the
+      concatenated array in memory simultaneously.
+    """
 
     def __init__(self, synset_names, use_matches_for_pose=False):
         self.synset_names = synset_names
@@ -343,6 +352,7 @@ class Pose6DValidator:
             (C, len(self.degree_thres) + 1, len(self.shift_thres) + 1))
         self.pose_acc = np.zeros_like(self.pose_ap)
 
+        # Fully clear accumulated data from previous epoch
         self.data = {c: {
             'iou': {'pm': [], 'scores': [], 'gm': []},
             'pose': {'pm': [], 'scores': [], 'gm': []}
@@ -384,6 +394,10 @@ class Pose6DValidator:
             p_sz = pr_sz[m_pr]
             p_sc = pr_sc[m_pr]
 
+            # Skip classes with no predictions and no ground truth
+            if len(g_ids) == 0 and len(p_ids) == 0:
+                continue
+
             # IoU match
             gm, pm, pred_indices = match_iou(
                 g_ids, g_RT, g_sz, p_ids, p_RT, p_sz, p_sc, self.iou_thres,
@@ -395,9 +409,12 @@ class Pose6DValidator:
             p_RT = p_RT[pred_indices]
             p_sz = p_sz[pred_indices]
 
-            self.data[cid]['iou']['pm'].append(pm)
+            # Store match arrays as int16 to save ~4x memory
+            # (match indices are small, well within int16 range of -32768
+            # to 32767)
+            self.data[cid]['iou']['pm'].append(pm.astype(np.int16))
             self.data[cid]['iou']['scores'].append(p_sc)
-            self.data[cid]['iou']['gm'].append(gm)
+            self.data[cid]['iou']['gm'].append(gm.astype(np.int16))
 
             # pose filtering
             if self.use_matches_for_pose:
@@ -413,53 +430,70 @@ class Pose6DValidator:
                 p_ids, p_RT, g_ids, g_RT, self.degree_thres, self.shift_thres,
                 self.synset_names)
 
-            self.data[cid]['pose']['pm'].append(pm_p)
+            # Store as int16
+            self.data[cid]['pose']['pm'].append(pm_p.astype(np.int16))
             self.data[cid]['pose']['scores'].append(p_sc)
-            self.data[cid]['pose']['gm'].append(gm_p)
+            self.data[cid]['pose']['gm'].append(gm_p.astype(np.int16))
 
     def compute_metrics(self):
-        """Compute mAP for IoU and pose metrics."""
+        """Compute mAP for IoU and pose metrics.
 
-        # aggregate
+        Memory optimization: for each class, we concatenate the accumulated
+        lists, then immediately delete the lists before computing AP/Acc.
+        This avoids holding both the raw lists and the concatenated arrays
+        in memory at the same time.
+        """
+
         for cid in range(1, len(self.classes)):
-            # iou
-            pm = (np.concatenate(self.data[cid]['iou']['pm'], axis=1)
-                  if self.data[cid]['iou']['pm']
-                  else np.empty((len(self.iou_thres), 0)))
-            sc = (np.concatenate(self.data[cid]['iou']['scores'], axis=0)
-                  if self.data[cid]['iou']['scores']
-                  else np.array([]))
-            gm = (np.concatenate(self.data[cid]['iou']['gm'], axis=1)
-                  if self.data[cid]['iou']['gm']
-                  else np.empty((len(self.iou_thres), 0)))
+            # ---- IoU metrics ----
+            iou_data = self.data[cid]['iou']
+            if iou_data['pm']:
+                # Concatenate then immediately free the source lists
+                pm = np.concatenate(iou_data['pm'], axis=1)
+                sc = np.concatenate(iou_data['scores'], axis=0)
+                gm = np.concatenate(iou_data['gm'], axis=1)
+            else:
+                pm = np.empty((len(self.iou_thres), 0))
+                sc = np.array([])
+                gm = np.empty((len(self.iou_thres), 0))
+
+            # Free accumulated lists BEFORE computing (they can be large)
+            iou_data['pm'].clear()
+            iou_data['scores'].clear()
+            iou_data['gm'].clear()
+
             for t in range(len(self.iou_thres)):
                 self.iou_ap[cid, t], self.iou_acc[cid, t] = \
                     compute_ap_acc(pm[t], sc, gm[t])
 
-            self.data[cid]['iou'].pop('pm', None)  # clear data for this class
-            self.data[cid]['iou'].pop('scores', None)
-            self.data[cid]['iou'].pop('gm', None)
+            # Free concatenated arrays
+            del pm, sc, gm
 
-            # pose
-            pm_p = (np.concatenate(self.data[cid]['pose']['pm'], axis=2)
-                    if self.data[cid]['pose']['pm']
-                    else np.empty((len(self.degree_thres)+1,
-                                   len(self.shift_thres)+1, 0)))
-            sc_p = (np.concatenate(self.data[cid]['pose']['scores'], axis=0)
-                    if self.data[cid]['pose']['scores']
-                    else np.array([]))
-            gm_p = (np.concatenate(self.data[cid]['pose']['gm'], axis=2)
-                    if self.data[cid]['pose']['gm']
-                    else np.empty((len(self.degree_thres)+1,
-                                   len(self.shift_thres)+1, 0)))
+            # ---- Pose metrics ----
+            pose_data = self.data[cid]['pose']
+            if pose_data['pm']:
+                pm_p = np.concatenate(pose_data['pm'], axis=2)
+                sc_p = np.concatenate(pose_data['scores'], axis=0)
+                gm_p = np.concatenate(pose_data['gm'], axis=2)
+            else:
+                pm_p = np.empty((len(self.degree_thres)+1,
+                                 len(self.shift_thres)+1, 0))
+                sc_p = np.array([])
+                gm_p = np.empty((len(self.degree_thres)+1,
+                                 len(self.shift_thres)+1, 0))
+
+            # Free accumulated lists BEFORE computing
+            pose_data['pm'].clear()
+            pose_data['scores'].clear()
+            pose_data['gm'].clear()
+
             for di in range(len(self.degree_thres)+1):
                 for si in range(len(self.shift_thres)+1):
                     self.pose_ap[cid, di, si], self.pose_acc[cid, di, si] \
                         = compute_ap_acc(pm_p[di, si], sc_p, gm_p[di, si])
 
-            self.data[cid]['pose'].pop('pm', None)  # clear data for this class
-            self.data[cid]['pose'].pop('scores', None)
-            self.data[cid]['pose'].pop('gm', None)
+            # Free concatenated arrays
+            del pm_p, sc_p, gm_p
 
         # global
         self.iou_ap[0] = np.nanmean(self.iou_ap[1:], axis=0)

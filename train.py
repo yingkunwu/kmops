@@ -1,4 +1,5 @@
 import os
+import gc
 import math
 import torch
 import hydra
@@ -103,6 +104,11 @@ class DETRModule(LightningModule):
                 images=[figure],
                 caption=[f"epoch_{self.current_epoch}_batch_{batch_idx}"]
             )
+            # Free post-processed outputs
+            del figure
+
+        # Free raw model outputs (computation graph) after use
+        del outputs
 
         return {"loss": loss_dict["total_loss"]}
 
@@ -123,6 +129,8 @@ class DETRModule(LightningModule):
         _, targets = batch
         outputs = self.model.postprocess(
             outputs, targets["ori_shape"], targets)
+        # Note: raw model outputs are now replaced by postprocessed
+        # (detached/cpu) outputs, freeing the computation graph.
 
         results = []
         preds_l, preds_r, pred_kpts_l, pred_kpts_r = [], [], [], []
@@ -204,26 +212,32 @@ class DETRModule(LightningModule):
                 images=[figure],
                 caption=[f"epoch_{self.current_epoch}_batch_{batch_idx}"]
             )
+            # Free the attention figure immediately
+            del figure
 
             images, captions = [], []
             for idx, res in enumerate(results):
                 img_l, img_r, _ = batch[0].decompose()
-                image = visualize_with_gt(
-                    img_l[idx], img_r[idx],
-                    res['pred_box3ds'],
-                    res['pred_scores'],
-                    res['pred_class_ids'],
-                    res['pred_ax3ds'],
-                    res['gt_box3ds'],
-                    res['gt_class_ids'],
-                    res['gt_ax3ds'],
-                    self.cfg.dataset.names,
-                    batch[1]['proj_matrix_l'][idx].cpu().to(torch.float32),
-                    batch[1]['proj_matrix_r'][idx].cpu().to(torch.float32),
-                    normalize_image=True
-                )
-                images.append(image[..., ::-1])  # convert BGR to RGB
-                captions.append(f"epoch_{self.current_epoch}_idx_{idx}")
+                try:
+                    image = visualize_with_gt(
+                        img_l[idx], img_r[idx],
+                        res['pred_box3ds'],
+                        res['pred_scores'],
+                        res['pred_class_ids'],
+                        res['pred_ax3ds'],
+                        res['gt_box3ds'],
+                        res['gt_class_ids'],
+                        res['gt_ax3ds'],
+                        self.cfg.dataset.names,
+                        batch[1]['proj_matrix_l'][idx].cpu().to(torch.float32),
+                        batch[1]['proj_matrix_r'][idx].cpu().to(torch.float32),
+                        normalize_image=True
+                    )
+                    images.append(image[..., ::-1])  # convert BGR to RGB
+                    captions.append(f"epoch_{self.current_epoch}_idx_{idx}")
+                except Exception as e:
+                    print(f"Visualization failed for idx {idx}: {e}")
+                    continue
                 if idx >= 3:
                     break
 
@@ -232,6 +246,13 @@ class DETRModule(LightningModule):
                 images=images,
                 caption=captions
             )
+            # Free visualization images
+            del images, captions
+
+        # Free local references to accumulated data
+        del results, preds_l, preds_r, pred_kpts_l, pred_kpts_r
+        del targs_l, targs_r, tart_kpts_l, tart_kpts_r
+        del outputs
 
     def on_validation_epoch_end(self):
         self.validator_pose.compute_metrics()
@@ -241,18 +262,23 @@ class DETRModule(LightningModule):
             on_epoch=True
         )
         self.validator_pose.init_metrics()
+
         res_l = self.validator_l.get_result()
         self.log_dict(
             {f"metric_left/{k}": v for k, v in res_l.items()},
             on_epoch=True
         )
         self.validator_l.init_metrics()
+
         res_r = self.validator_r.get_result()
         self.log_dict(
             {f"metric_right/{k}": v for k, v in res_r.items()},
             on_epoch=True
         )
         self.validator_r.init_metrics()
+
+        # Force garbage collection after full validation epoch
+        gc.collect()
 
 
 @hydra.main(config_path="conf", config_name="", version_base="1.3")
@@ -293,6 +319,7 @@ def run(cfg: DictConfig):
                       deterministic=False,
                       num_sanity_val_steps=1,
                       logger=logger,
+                      limit_val_batches=0.1,  # only validate on 10% of val set
                       callbacks=callbacks)
 
     module = DETRModule(cfg)

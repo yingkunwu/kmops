@@ -2,6 +2,7 @@ import copy
 import pickle
 import torch
 from PIL import Image
+from omegaconf import ListConfig
 
 from .transforms import make_transforms
 from .object_property import get_symmetric_type, get_flip_pairs
@@ -15,8 +16,18 @@ class BaseDataset:
             pkl_path = cfg.dataset.train_pkl
         else:
             pkl_path = cfg.dataset.val_pkl
-        with open(pkl_path, 'rb') as f:
-            self.pkl = pickle.load(f)
+        if isinstance(pkl_path, ListConfig):
+            self.pkl = []
+            for p in pkl_path:
+                with open(p, 'rb') as f:
+                    data = pickle.load(f)
+                if isinstance(data, list):
+                    self.pkl.extend(data)
+                else:
+                    self.pkl.append(data)
+        else:
+            with open(pkl_path, 'rb') as f:
+                self.pkl = pickle.load(f)
 
         self.transform = make_transforms(cfg, image_set)
 
