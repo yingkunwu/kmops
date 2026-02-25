@@ -1,7 +1,7 @@
 # KMOPS
 
 
-This is the official code release for our paper "KMOPS: Keypoint-Driven Method for Multi-Object Pose and Metric Size Estimation from Stereo Images". **[[Paper](https://openaccess.thecvf.com/content/WACV2026/papers/Wu_KMOPS_Keypoint-Driven_Method_for_Multi-Object_Pose_and_Metric_Size_Estimation_WACV_2026_paper.pdf)]  [[Project Page](https://kmopss.github.io/)]**
+This is the official code release for our paper "**KMOPS: Keypoint-Driven Method for Multi-Object Pose and Metric Size Estimation from Stereo Images**". **[[Paper](https://openaccess.thecvf.com/content/WACV2026/papers/Wu_KMOPS_Keypoint-Driven_Method_for_Multi-Object_Pose_and_Metric_Size_Estimation_WACV_2026_paper.pdf)]  [[Project Page](https://kmopss.github.io/)]**
 
 <img src="teaser/biolab_scene_1_07162020_14.gif" alt="Teaser" width="720" />
 
