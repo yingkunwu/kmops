@@ -138,7 +138,7 @@ Many parts of the code are adapted and modified from [DETR](https://github.com/f
 
 ## Citation
 
-If you use this code or the DiverPose dataset for your research, please cite:
+If you use this code for your research, please cite:
 ```
 @InProceedings{Wu_2026_WACV,
     author    = {Wu, Ying-Kun and Shen, Yi and Huang, Tzuhsuan and Fang, I-Sheng and Chen, Jun-Cheng},
