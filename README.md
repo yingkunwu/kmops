@@ -134,7 +134,8 @@ python evaluate.py --wandb_folder 8keypoints_o2o_stereobj
 
 ## Acknowledgments
 
-Many parts of the code are adapted and modified from [DETR](https://github.com/facebookresearch/detr), [RTDETR](https://github.com/lyuwenyu/RT-DETR), [GroupPose](https://github.com/Michel-liu/GroupPose), [Ultralytics](https://github.com/ultralytics/ultralytics), and [SPD](https://github.com/mentian/object-deformnet).
+The main structure of the code are adapted and modified from [DETR](https://github.com/facebookresearch/detr), [RTDETR](https://github.com/lyuwenyu/RT-DETR), [GroupPose](https://github.com/Michel-liu/GroupPose).
+Our evaluation code are directly borrowed from [Ultralytics](https://github.com/ultralytics/ultralytics), and [SPD](https://github.com/mentian/object-deformnet).
 
 ## Citation
 
